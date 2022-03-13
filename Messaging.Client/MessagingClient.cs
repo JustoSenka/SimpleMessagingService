@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Messaging.Client
 {
-    public class MClient : IDisposable
+    public class MessagingClient : IDisposable
     {
         public const int DefaultPort = 13000;
         public const string DefaultAddress = "127.0.0.1";
@@ -22,7 +22,7 @@ namespace Messaging.Client
 
         public bool IsDisposing { get; private set; }
 
-        public MClient(string address = DefaultAddress, int port = DefaultPort)
+        public MessagingClient(string address = DefaultAddress, int port = DefaultPort)
         {
             m_Address = address;
             m_Port = port;

@@ -8,7 +8,7 @@ namespace Messaging.ServerCLI
     {
         static async Task Main(string[] args)
         {
-            var s = new MServer();
+            var s = new MessagingServer();
             s.Start();
 
             while (true)

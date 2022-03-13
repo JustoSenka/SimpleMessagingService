@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace Messaging.Server
 {
-    public class MServer : IDisposable
+    public class MessagingServer : IDisposable
     {
         public event Action<long> Disconnected;
         public bool IsDisposing { get; private set; }

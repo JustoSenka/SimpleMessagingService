@@ -8,7 +8,7 @@ namespace Messaging.ClientCLI
     {
         static async Task Main(string[] args)
         {
-            var s = new MClient();
+            var s = new MessagingClient();
             await s.Connect();
 
             while (true)
