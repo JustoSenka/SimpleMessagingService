@@ -162,9 +162,10 @@ namespace Messaging.Server
             }
             catch (Exception) { }
 
-            Logger.LogServer("Stopping TCP Server.");
-
             CloseAllClientConnetcions();
+
+            IsDisposing = false;
+            Logger.LogServer("Stopping TCP Server.");
         }
 
         private void CloseAllClientConnetcions()

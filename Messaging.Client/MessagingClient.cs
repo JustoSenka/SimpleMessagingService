@@ -20,19 +20,22 @@ namespace Messaging.Client
 
         public event Action Disconnected;
 
+        public bool AutoReconnect { get; set; }
+
         public bool IsDisposing { get; private set; }
+        public bool IsReconnecting { get; private set; }
 
         public MessagingClient(string address = DefaultAddress, int port = DefaultPort)
         {
             m_Address = address;
             m_Port = port;
-            m_TcpClient = new TcpClient();
         }
 
         public async Task Connect()
         {
             try
             {
+                m_TcpClient = new TcpClient();
                 await m_TcpClient.ConnectAsync(m_Address, m_Port);
                 var endPoint = m_TcpClient.Client.RemoteEndPoint;
                 m_Stream = m_TcpClient.GetStream();
@@ -41,9 +44,12 @@ namespace Messaging.Client
 
                 ListenForMessages();
             }
-            catch (SocketException e)
+            catch (SocketException)
             {
-                Logger.LogClient("Unable to connect to host {0}:{1}: {2}", m_Address, m_Port, e);
+                Logger.LogClient("Unable to connect to host {0}:{1}", m_Address, m_Port);
+
+                if (AutoReconnect)
+                    await Reconnect();
             }
         }
 
@@ -90,9 +96,36 @@ namespace Messaging.Client
                 catch (Exception) { } // Do nothing, will close connection below
 
                 Stop();
+
+                if (AutoReconnect)
+                    await Reconnect();
             });
 
             thread.Start();
+        }
+
+        private async Task Reconnect()
+        {
+            if (IsReconnecting)
+                return;
+
+            IsReconnecting = true;
+
+            Logger.LogClient("Trying to reconnect to Server.");
+
+            while (!IsConnected())
+            {
+                await Connect();
+                await Task.Delay(5000);
+
+                if (IsDisposing)
+                {
+                    IsReconnecting = false;
+                    return;
+                }
+            }
+
+            IsReconnecting = false;
         }
 
         public void Stop()
@@ -115,6 +148,8 @@ namespace Messaging.Client
                 m_TcpClient.Dispose();
             }
             catch (Exception) { }
+
+            IsDisposing = false;
 
             Disconnected?.Invoke();
             Logger.LogClient("Connection closed.");
