@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -9,8 +10,12 @@ using System.Threading.Tasks;
 
 namespace Messaging.Server
 {
-    public class MServer
+    public class MServer : IDisposable
     {
+        public event Action<long> Disconnected;
+        public bool IsDisposing { get; private set; }
+
+
         private TcpListener m_TcpListener;
 
         private Int32 m_Port = 13000;
@@ -22,15 +27,8 @@ namespace Messaging.Server
         private Dictionary<long, Thread> m_Threads = new Dictionary<long, Thread>();
 
         private long m_IdCount = 1;
-
-        private bool runListeningLoop = true;
-
+        
         public void Start()
-        {
-            ListenForIncomingConnections();
-        }
-
-        public void ListenForIncomingConnections()
         {
             m_TcpListener = new TcpListener(m_LocalAddr, m_Port);
             m_TcpListener.Start();
@@ -38,7 +36,7 @@ namespace Messaging.Server
 
             m_ListeningThread = new Thread(async () =>
             {
-                while (runListeningLoop)
+                while (!IsDisposing)
                 {
                     try
                     {
@@ -90,14 +88,7 @@ namespace Messaging.Server
                         Logger.LogClient(client, data);
                     }
                 }
-                catch (InvalidOperationException)
-                {
-                    Logger.LogClient(client, "Connection closed. {0}");
-                }
-                catch (IOException)
-                {
-                    Logger.LogClient(client, "Connection closed. {0}");
-                }
+                catch (Exception) { } // Do nothing, below make sure everything is disconnected
 
                 CloseClient(client.id);
             });
@@ -113,22 +104,27 @@ namespace Messaging.Server
             try
             {
                 client.client.Close();
+                client.client.Dispose();
             }
             catch (Exception) { }
 
             try
             {
                 client.stream.Close();
+                client.stream.Dispose();
             }
             catch (Exception) { }
 
             m_Clients.Remove(id);
             m_Threads.Remove(id);
+
+            Disconnected?.Invoke(id);
+            Logger.LogClient(client, "Connection closed. {0}", id);
         }
 
         public async Task Send(long clientID, string message)
         {
-            if (!m_Clients.ContainsKey(clientID))
+            if (!IsConnected(clientID))
             {
                 Logger.LogServer("Client not connected: {0}", clientID);
                 return;
@@ -141,8 +137,6 @@ namespace Messaging.Server
                 var bytes = System.Text.Encoding.UTF8.GetBytes(message);
                 var data = bytes.AsMemory();
                 await client.stream.WriteAsync(data);
-
-                Logger.LogServer("Sent: {0}", message);
             }
             catch (InvalidOperationException e)
             {
@@ -156,7 +150,11 @@ namespace Messaging.Server
 
         public void Stop()
         {
-            runListeningLoop = false;
+            if (IsDisposing)
+                return;
+
+            IsDisposing = true;
+
             try
             {
                 m_TcpListener.Stop();
@@ -165,6 +163,24 @@ namespace Messaging.Server
             catch (Exception) { }
 
             Logger.LogServer("Stopping TCP Server.");
+
+            CloseAllClientConnetcions();
+        }
+
+        private void CloseAllClientConnetcions()
+        {
+            var ids = m_Clients.Keys.ToArray();
+            for (int i = 0; i < ids.Length; i++)
+            {
+                CloseClient(ids[i]);
+            }
+        }
+
+        public bool IsConnected(long id) => m_Clients.ContainsKey(id) && m_Clients[id].client.Connected;
+
+        public void Dispose()
+        {
+            Stop();
         }
     }
 }

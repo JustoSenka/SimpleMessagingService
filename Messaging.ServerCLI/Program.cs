@@ -14,7 +14,11 @@ namespace Messaging.ServerCLI
             while (true)
             {
                 var line = Console.ReadLine();
-                await s.Send(line);
+                if (int.TryParse(line.Split(' ')[0], out int id))
+                {
+                    var msg = line.Substring(id.ToString().Length + 1);
+                    await s.Send(id, msg);
+                }
             }
 
             Console.WriteLine("\n Press Enter to quit...");
