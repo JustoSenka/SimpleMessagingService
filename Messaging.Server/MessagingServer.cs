@@ -1,4 +1,5 @@
-﻿using Messaging.Server.Utilities;
+﻿using Messaging.Common;
+using Messaging.Server.Utilities;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -12,22 +13,28 @@ namespace Messaging.Server
 {
     public class MessagingServer : IDisposable
     {
+        public const int DefaultPort = 13000;
+
+
         public event Action<long> Disconnected;
         public bool IsDisposing { get; private set; }
 
 
         private TcpListener m_TcpListener;
 
-        private Int32 m_Port = 13000;
-        private IPAddress m_LocalAddr = IPAddress.Parse("127.0.0.1");
+        private readonly int m_Port;
+        private readonly IPAddress m_LocalAddr = IPAddress.Parse("127.0.0.1");
 
         private Thread m_ListeningThread;
-
-        private Dictionary<long, ConnectedClient> m_Clients = new Dictionary<long, ConnectedClient>();
-        private Dictionary<long, Thread> m_Threads = new Dictionary<long, Thread>();
+        private readonly Dictionary<long, ConnectedClient<Message>> m_Clients = new Dictionary<long, ConnectedClient<Message>>();
 
         private long m_IdCount = 1;
-        
+
+        public MessagingServer(int port = DefaultPort)
+        {
+            m_Port = port;
+        }
+
         public void Start()
         {
             m_TcpListener = new TcpListener(m_LocalAddr, m_Port);
@@ -40,23 +47,27 @@ namespace Messaging.Server
                 {
                     try
                     {
-                        var tcpClient = await m_TcpListener.AcceptTcpClientAsync();
-                        var ip = tcpClient.Client.RemoteEndPoint.ToString();
+                        var tcp = await m_TcpListener.AcceptTcpClientAsync();
+                        var tcpClient = new PersistentTcpClient<Message>(tcp);
+                        var ip = tcpClient.Client.Client.RemoteEndPoint.ToString();
 
-                        var client = new ConnectedClient()
+                        var client = new ConnectedClient<Message>()
                         {
                             id = m_IdCount,
                             client = tcpClient,
-                            stream = tcpClient.GetStream(),
                             endpoint = ip,
                         };
+
+                        tcpClient.MessageReceived += msg => OnMessageReceived(client, msg);
+                        tcpClient.InvalidMessageReceived += msg => OnInvalidMessageReceived(client, msg);
+                        tcpClient.Disconnected += () => OnDisconnected(client);
+                        tcpClient.Connected += () => OnConnected(client);
 
                         Logger.LogClient(client, "Client connected.");
 
                         m_Clients[m_IdCount] = client;
                         m_IdCount++;
 
-                        ListenForMessages(client);
                     }
                     catch (InvalidOperationException ioe)
                     {
@@ -72,29 +83,24 @@ namespace Messaging.Server
             m_ListeningThread.Start();
         }
 
-        private void ListenForMessages(ConnectedClient client)
+        private void OnDisconnected(ConnectedClient<Message> client)
         {
-            var thread = new Thread(async () =>
-            {
-                try
-                {
-                    var array = new byte[256];
-                    var buffer = array.AsMemory();
-                    int bytesRead;
+            CloseClient(client.id);
+        }
 
-                    while ((bytesRead = await client.stream.ReadAsync(buffer)) != 0)
-                    {
-                        var data = System.Text.Encoding.UTF8.GetString(array, 0, bytesRead);
-                        Logger.LogClient(client, data);
-                    }
-                }
-                catch (Exception) { } // Do nothing, below make sure everything is disconnected
+        private void OnConnected(ConnectedClient<Message> client)
+        {
+            Logger.LogClient(client, "Client connected.");
+        }
 
-                CloseClient(client.id);
-            });
+        private void OnInvalidMessageReceived(ConnectedClient<Message> client, string str)
+        {
+            Logger.LogClient(client, str);
+        }
 
-            thread.Start();
-            m_Threads[client.id] = thread;
+        private void OnMessageReceived(ConnectedClient<Message> client, Message msg)
+        {
+            Logger.LogClient(client, msg.ToString());
         }
 
         public void CloseClient(long id)
@@ -103,26 +109,18 @@ namespace Messaging.Server
 
             try
             {
-                client.client.Close();
                 client.client.Dispose();
-            }
-            catch (Exception) { }
-
-            try
-            {
-                client.stream.Close();
-                client.stream.Dispose();
+                client.client.Stream.Dispose();
             }
             catch (Exception) { }
 
             m_Clients.Remove(id);
-            m_Threads.Remove(id);
 
+            Logger.LogClient(client, "Client disconnected.");
             Disconnected?.Invoke(id);
-            Logger.LogClient(client, "Connection closed. {0}", id);
         }
 
-        public async Task Send(long clientID, string message)
+        public async Task Send(long clientID, Message message)
         {
             if (!IsConnected(clientID))
             {
@@ -134,9 +132,7 @@ namespace Messaging.Server
 
             try
             {
-                var bytes = System.Text.Encoding.UTF8.GetBytes(message);
-                var data = bytes.AsMemory();
-                await client.stream.WriteAsync(data);
+                await client.client.Send(message);
             }
             catch (InvalidOperationException e)
             {
@@ -148,7 +144,16 @@ namespace Messaging.Server
             }
         }
 
-        public void Stop()
+        private void CloseAllClientConnetcions()
+        {
+            var ids = m_Clients.Keys.ToArray();
+            foreach (var id in ids)
+                CloseClient(id);
+        }
+
+        public bool IsConnected(long id) => m_Clients.ContainsKey(id) && m_Clients[id].client.IsConnected();
+
+        public void Dispose()
         {
             if (IsDisposing)
                 return;
@@ -166,22 +171,6 @@ namespace Messaging.Server
 
             IsDisposing = false;
             Logger.LogServer("Stopping TCP Server.");
-        }
-
-        private void CloseAllClientConnetcions()
-        {
-            var ids = m_Clients.Keys.ToArray();
-            for (int i = 0; i < ids.Length; i++)
-            {
-                CloseClient(ids[i]);
-            }
-        }
-
-        public bool IsConnected(long id) => m_Clients.ContainsKey(id) && m_Clients[id].client.Connected;
-
-        public void Dispose()
-        {
-            Stop();
         }
     }
 }

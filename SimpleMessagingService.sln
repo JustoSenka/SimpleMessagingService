@@ -11,9 +11,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Messaging.Tests", "Messagin
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Messaging.Common", "Messaging.Common\Messaging.Common.csproj", "{7781D664-2DEA-4ADC-B5F2-ED45E879B33D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Messaging.ClientCLI", "Messaging.ClientCLI\Messaging.ClientCLI.csproj", "{CF13CB26-4CF2-4379-AB07-D945D5029195}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Messaging.ClientCLI", "Messaging.ClientCLI\Messaging.ClientCLI.csproj", "{CF13CB26-4CF2-4379-AB07-D945D5029195}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Messaging.ServerCLI", "Messaging.ServerCLI\Messaging.ServerCLI.csproj", "{7475060C-3938-48AB-B4CA-EF146DFB47D4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Messaging.ServerCLI", "Messaging.ServerCLI\Messaging.ServerCLI.csproj", "{7475060C-3938-48AB-B4CA-EF146DFB47D4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Messaging.PersistentTcp", "Messaging.PersistentTcp\Messaging.PersistentTcp.csproj", "{2300A6C5-94DB-48A2-B073-D1376F425DDF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -45,6 +47,10 @@ Global
 		{7475060C-3938-48AB-B4CA-EF146DFB47D4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7475060C-3938-48AB-B4CA-EF146DFB47D4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7475060C-3938-48AB-B4CA-EF146DFB47D4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2300A6C5-94DB-48A2-B073-D1376F425DDF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2300A6C5-94DB-48A2-B073-D1376F425DDF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2300A6C5-94DB-48A2-B073-D1376F425DDF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2300A6C5-94DB-48A2-B073-D1376F425DDF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

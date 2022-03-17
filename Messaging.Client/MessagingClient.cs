@@ -1,8 +1,7 @@
 ﻿using Messaging.Client.Utilities;
+using Messaging.Common;
 using System;
 using System.IO;
-using System.Net.Sockets;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Messaging.Client
@@ -12,154 +11,88 @@ namespace Messaging.Client
         public const int DefaultPort = 13000;
         public const string DefaultAddress = "127.0.0.1";
 
-        private readonly string m_Address;
+        private readonly string m_Host;
         private readonly int m_Port;
 
-        private TcpClient m_TcpClient;
-        private NetworkStream m_Stream;
+        public bool AutoReconnect { get => m_Client.AutoReconnect; set => m_Client.AutoReconnect = value; }
 
-        public event Action Disconnected;
-
-        public bool AutoReconnect { get; set; }
-
-        public bool IsDisposing { get; private set; }
-        public bool IsReconnecting { get; private set; }
+        private readonly PersistentTcpClient<Message> m_Client;
 
         public MessagingClient(string address = DefaultAddress, int port = DefaultPort)
         {
-            m_Address = address;
+            m_Host = address;
             m_Port = port;
+            m_Client = new PersistentTcpClient<Message>();
+            m_Client.AutoReconnect = true;
+
+            m_Client.CannotConnect += OnCannotConnect;
+            m_Client.MessageReceived += OnMessageReceived;
+            m_Client.Disconnected += OnDisconnected;
+            m_Client.Connected += OnConnected;
+            m_Client.InvalidMessageReceived += OnInvalidMessageReceived;
+            m_Client.Connecting += OnConnectingToServer;
+        }
+
+        private void OnConnectingToServer()
+        {
+            Logger.LogClient("Trying to connect to host {0}:{1}.", m_Host, m_Port);
+        }
+
+        private void OnConnected()
+        {
+            Logger.LogClient("Connected to server.");
+        }
+
+        private void OnDisconnected()
+        {
+            Logger.LogClient("Lost connection to server.");
+        }
+
+        private void OnInvalidMessageReceived(string str)
+        {
+            Logger.LogClient(str);
+        }
+
+        private void OnMessageReceived(Message msg)
+        {
+            Logger.LogServer(msg.ToString());
+        }
+
+        private void OnCannotConnect()
+        {
+            Logger.LogClient("Unable to connect to host {0}:{1}.", m_Host, m_Port);
         }
 
         public async Task Connect()
         {
-            try
-            {
-                m_TcpClient = new TcpClient();
-                await m_TcpClient.ConnectAsync(m_Address, m_Port);
-                var endPoint = m_TcpClient.Client.RemoteEndPoint;
-                m_Stream = m_TcpClient.GetStream();
-
-                Logger.LogClient("Connected to: {0}", endPoint);
-
-                ListenForMessages();
-            }
-            catch (SocketException)
-            {
-                Logger.LogClient("Unable to connect to host {0}:{1}", m_Address, m_Port);
-
-                if (AutoReconnect)
-                    await Reconnect();
-            }
+            await m_Client.AutoConnectAsync(m_Host, m_Port);
         }
 
-        public async Task Send(string message)
+        public async Task Send(Message message)
         {
-            if (!IsConnected())
+            if (!m_Client.IsConnected())
             {
-                Logger.LogClient("Client not connected");
+                Logger.LogClient("Client not connected.");
                 return;
             }
 
             try
             {
-                var bytes = System.Text.Encoding.UTF8.GetBytes(message);
-                var data = bytes.AsMemory();
-                await m_Stream.WriteAsync(data);
+                await m_Client.Send(message);
             }
-            catch (InvalidOperationException e)
+            catch (InvalidOperationException)
             {
-                Logger.LogClient("Failed to send a message: {0}", e);
+                Logger.LogClient("Failed to send a message.");
             }
-            catch (IOException e)
+            catch (IOException)
             {
-                Logger.LogClient("Failed to send a message: {0}", e);
+                Logger.LogClient("Failed to send a message.");
             }
         }
-
-        private void ListenForMessages()
-        {
-            var thread = new Thread(async () =>
-            {
-                try
-                {
-                    var array = new byte[256];
-                    var buffer = array.AsMemory();
-                    int bytesRead;
-
-                    while ((bytesRead = await m_Stream.ReadAsync(buffer)) != 0)
-                    {
-                        var data = System.Text.Encoding.UTF8.GetString(array, 0, bytesRead);
-                        Logger.LogServer(data);
-                    }
-                }
-                catch (Exception) { } // Do nothing, will close connection below
-
-                Stop();
-
-                if (AutoReconnect)
-                    await Reconnect();
-            });
-
-            thread.Start();
-        }
-
-        private async Task Reconnect()
-        {
-            if (IsReconnecting)
-                return;
-
-            IsReconnecting = true;
-
-            Logger.LogClient("Trying to reconnect to Server.");
-
-            while (!IsConnected())
-            {
-                await Connect();
-                await Task.Delay(5000);
-
-                if (IsDisposing)
-                {
-                    IsReconnecting = false;
-                    return;
-                }
-            }
-
-            IsReconnecting = false;
-        }
-
-        public void Stop()
-        {
-            if (IsDisposing)
-                return;
-
-            IsDisposing = true;
-
-            try
-            {
-                m_Stream.Close();
-                m_Stream.Dispose();
-            }
-            catch (Exception) { }
-
-            try
-            {
-                m_TcpClient.Close();
-                m_TcpClient.Dispose();
-            }
-            catch (Exception) { }
-
-            IsDisposing = false;
-
-            Disconnected?.Invoke();
-            Logger.LogClient("Connection closed.");
-        }
-
-        public bool IsConnected() => m_TcpClient.Connected;
 
         public void Dispose()
         {
-            Stop();
+            m_Client.Dispose();
         }
     }
 }

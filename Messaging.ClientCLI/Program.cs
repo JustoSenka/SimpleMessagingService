@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Messaging.Client;
+using Messaging.Common;
+using Messaging.Common.Utilities;
 
 namespace Messaging.ClientCLI
 {
@@ -15,7 +17,7 @@ namespace Messaging.ClientCLI
             while (true)
             {
                 var line = Console.ReadLine();
-                await s.Send(line);
+                await s.Send(new Message(MessageType.Response, line.ToBytesUTF8()));
             }
 
             Console.WriteLine("\n Press Enter to quit...");

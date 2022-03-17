@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Messaging.Common;
+using System;
 
 namespace Messaging.Server.Utilities
 {
@@ -8,7 +9,7 @@ namespace Messaging.Server.Utilities
         {
             Console.WriteLine($" -- {msg}", args);
         }
-        public static void LogClient(ConnectedClient client, string msg, params object[] args)
+        public static void LogClient(ConnectedClient<Message> client, string msg, params object[] args)
         {
             Console.WriteLine($"[{client.endpoint}]:[{client.id}]: {msg}", args);
         }
