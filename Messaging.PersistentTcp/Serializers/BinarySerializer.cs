@@ -1,11 +1,11 @@
 ﻿using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 
-namespace Messaging.Common.Utilities
+namespace Messaging.PersistentTcp.Serializers
 {
-    public static class BinaryObjectIO
+    public class BinarySerializer<T> : ISerializer<T>
     {
-        public static byte[] SerializeToBytes<T>(T obj)
+        public byte[] Serialize(T obj)
         {
             if (obj == null)
                 return null;
@@ -17,10 +17,10 @@ namespace Messaging.Common.Utilities
             return stream.ToArray();
         }
 
-        public static T DeserializeFromBytes<T>(byte[] bytes)
+        public T Deserialize(byte[] bytes)
         {
             if (bytes == null)
-                return default(T);
+                return default;
 
             var stream = new MemoryStream(bytes);
             var formatter = new BinaryFormatter();

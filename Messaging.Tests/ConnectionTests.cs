@@ -1,3 +1,4 @@
+using Messaging.PersistentTcp;
 using NUnit.Framework;
 
 namespace Messaging.Tests
@@ -12,7 +13,8 @@ namespace Messaging.Tests
         [Test]
         public void Test1()
         {
-            Assert.Pass();
+            //var s = new PersistentTcpListener();
+            //var c = new PersistentTcpClient();
         }
     }
 }

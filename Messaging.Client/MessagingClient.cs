@@ -1,5 +1,6 @@
 ﻿using Messaging.Client.Utilities;
 using Messaging.Common;
+using Messaging.PersistentTcp;
 using System;
 using System.IO;
 using System.Threading.Tasks;
@@ -16,13 +17,13 @@ namespace Messaging.Client
 
         public bool AutoReconnect { get => m_Client.AutoReconnect; set => m_Client.AutoReconnect = value; }
 
-        private readonly PersistentTcpClient<Message> m_Client;
+        private readonly PersistentTcpClient<MessageCommand> m_Client;
 
         public MessagingClient(string address = DefaultAddress, int port = DefaultPort)
         {
             m_Host = address;
             m_Port = port;
-            m_Client = new PersistentTcpClient<Message>();
+            m_Client = new PersistentTcpClient<MessageCommand>();
             m_Client.AutoReconnect = true;
 
             m_Client.CannotConnect += OnCannotConnect;
@@ -53,7 +54,7 @@ namespace Messaging.Client
             Logger.LogClient(str);
         }
 
-        private void OnMessageReceived(Message msg)
+        private void OnMessageReceived(MessageCommand msg)
         {
             Logger.LogServer(msg.ToString());
         }
@@ -68,7 +69,7 @@ namespace Messaging.Client
             await m_Client.AutoConnectAsync(m_Host, m_Port);
         }
 
-        public async Task Send(Message message)
+        public async Task Send(MessageCommand message)
         {
             if (!m_Client.IsConnected())
             {

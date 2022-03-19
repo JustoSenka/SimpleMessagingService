@@ -1,12 +1,12 @@
-﻿using Messaging.Common;
-using System.Net.Sockets;
+﻿using Messaging.PersistentTcp;
 
 namespace Messaging.Server
 {
-    public struct ConnectedClient<T>
+    /*
+    public struct ConnectedClient<TMessage> where TMessage : Message
     {
         public long id;
         public string endpoint;
-        public PersistentTcpClient<T> client;
-    }
+        public PersistentTcpClient<TMessage> client;
+    }*/
 }

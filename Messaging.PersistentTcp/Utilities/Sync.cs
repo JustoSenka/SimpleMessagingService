@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Messaging.Common.Utilities
+namespace Messaging.PersistentTcp.Utilities
 {
     public static class Sync
     {

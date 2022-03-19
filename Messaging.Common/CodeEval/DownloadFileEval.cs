@@ -1,4 +1,5 @@
 ﻿using Messaging.Common.Utilities;
+using Messaging.PersistentTcp;
 using Newtonsoft.Json;
 using System.IO;
 using System.Threading;

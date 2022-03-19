@@ -1,5 +1,6 @@
 ﻿using Messaging.Common;
 using Messaging.Common.Utilities;
+using Messaging.PersistentTcp;
 using Messaging.Server;
 using System;
 using System.Threading.Tasks;
@@ -19,7 +20,7 @@ namespace Messaging.ServerCLI
                 if (int.TryParse(line.Split(' ')[0], out int id))
                 {
                     var msg = line.Substring(id.ToString().Length + 1);
-                    await s.Send(id, new Message(MessageType.Response, line.ToBytesUTF8()));
+                    await s.Send(id, new MessageCommand(MessageType.Text, line.ToBytesUTF8()));
                 }
             }
 

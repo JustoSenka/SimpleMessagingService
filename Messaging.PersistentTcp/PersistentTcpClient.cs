@@ -1,21 +1,22 @@
-﻿using Messaging.Common.Utilities;
-using Newtonsoft.Json;
+﻿using Messaging.PersistentTcp.Serializers;
 using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Messaging.Common
+namespace Messaging.PersistentTcp
 {
-    public class PersistentTcpClient<T> : IDisposable
+    public class PersistentTcpClient<TMessage> : IDisposable where TMessage : Message
     {
-        public event Action Disconnected;
         public event Action Connected;
-        public event Action<string> InvalidMessageReceived;
-        public event Action CannotConnect;
         public event Action Connecting;
-        public event Action<T> MessageReceived;
+        public event Action CannotConnect;
+        public event Action Disconnected;
+
+        public event Action<string> InvalidMessageReceived;
+        public event Action<TMessage> MessageReceived;
 
         public bool AutoReconnect { get; set; }
         public bool IsDisposed { get; private set; }
@@ -35,9 +36,14 @@ namespace Messaging.Common
         private string m_Host;
         private int m_Port;
 
+        private readonly ConcurrentDictionary<Guid, TaskCompletionSource<TMessage>> m_Responses = new ConcurrentDictionary<Guid, TaskCompletionSource<TMessage>>();
+
+        private readonly ISerializer<TMessage> m_Serializer;
+
         public PersistentTcpClient()
         {
             Client = new TcpClient();
+            m_Serializer = new JsonSerializer<TMessage>();
         }
 
         public PersistentTcpClient(TcpClient tcpClient)
@@ -45,6 +51,7 @@ namespace Messaging.Common
             Client = tcpClient;
             Stream = tcpClient.GetStream();
             ListenForMessages();
+            m_Serializer = new JsonSerializer<TMessage>();
         }
 
         public async Task AutoConnectAsync(string hostname, int port)
@@ -96,6 +103,7 @@ namespace Messaging.Common
                     {
                         var msg = await ReadNextMessage();
                         MessageReceived?.Invoke(msg);
+                        CheckMessageIsResponse(msg);
                     }
                     catch (SocketException)
                     {
@@ -127,7 +135,7 @@ namespace Messaging.Common
             m_Thread.Start();
         }
 
-        private async Task<T> ReadNextMessage()
+        private async Task<TMessage> ReadNextMessage()
         {
             int msgLength = GetMessageLength();
 
@@ -144,12 +152,12 @@ namespace Messaging.Common
                 throw new InvalidMessageException($"Invalid message length, expected {msgLength} bytes, got {bytesRead}");
             }
 
-            return JsonConvert.DeserializeObject<T>(array.ToStringUTF8());
+            return m_Serializer.Deserialize(array);
         }
 
-        public async Task Send(T message)
+        public async Task Send(TMessage message)
         {
-            var bytes = JsonConvert.SerializeObject(message).ToBytesUTF8();
+            var bytes = m_Serializer.Serialize(message);
             var msgLength = bytes.Length;
 
             var byte1 = (byte)(msgLength >> 8);
@@ -160,6 +168,34 @@ namespace Messaging.Common
             Stream.WriteByte(byte2);
 
             await Stream.WriteAsync(bytes.AsMemory());
+        }
+
+        public async Task<TMessage> SendAndWaitForResponse(TMessage message, int timeout = 10000, CancellationToken cancellationToken = default)
+        {
+            var tcs = new TaskCompletionSource<TMessage>();
+
+            m_Responses[message.Guid] = tcs;
+
+            var timeoutTask = Task.Run(async () =>
+            {
+                await Task.Delay(timeout);
+                return (TMessage) new Message("Timeout".ToBytesUTF8());
+            }, cancellationToken);
+
+            await Send(message);
+
+            var finishedTask = await Task.WhenAny(timeoutTask, tcs.Task);
+            return await finishedTask;
+        }
+
+        private void CheckMessageIsResponse(TMessage msg)
+        {
+            // Removes message guid from response collection
+            // Sets task result for anyone waiting for it
+            if (m_Responses.TryRemove(msg.Guid, out var taskSource))
+            {
+                taskSource.SetResult(msg);
+            }
         }
 
         private int GetMessageLength()

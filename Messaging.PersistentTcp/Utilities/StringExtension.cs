@@ -1,6 +1,6 @@
 ﻿using System.Text;
 
-namespace Messaging.Common.Utilities
+namespace Messaging.PersistentTcp.Utilities
 {
     public static class StringExtension
     {

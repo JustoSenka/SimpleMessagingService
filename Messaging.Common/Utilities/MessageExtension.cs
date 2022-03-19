@@ -2,7 +2,7 @@
 {
     public static class MessageExtension
     {
-        public static Message ToMessage(this byte[] bytes) => BinaryObjectIO.DeserializeFromBytes<Message>(bytes);
-        public static byte[] ToBytes(this Message m) => BinaryObjectIO.SerializeToBytes(m);
+        public static MessageCommand ToMessage(this byte[] bytes) => BinaryObjectIO.DeserializeFromBytes<MessageCommand>(bytes);
+        public static byte[] ToBytes(this MessageCommand m) => BinaryObjectIO.SerializeToBytes(m);
     }
 }
