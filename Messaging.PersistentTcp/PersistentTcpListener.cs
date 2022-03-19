@@ -9,12 +9,12 @@ using System.Threading.Tasks;
 
 namespace Messaging.PersistentTcp
 {
-    public class PersistentTcpListener<TMessage> : IDisposable where TMessage : Message
+    public class PersistentTcpListener : IDisposable
     {
         public event Action<long> Connected;
-        public event Action<ClientInfo<TMessage>> Disconnected;
+        public event Action<ClientInfo> Disconnected;
         public event Action<long, string> InvalidMessageReceived;
-        public event Action<long, TMessage> MessageReceived;
+        public event Action<long, Message> MessageReceived;
         
         public event Action<Exception> ErrorWhileConnecting;
 
@@ -29,8 +29,8 @@ namespace Messaging.PersistentTcp
 
         private Thread m_ListeningThread;
 
-        public ConcurrentDictionary<long, ClientInfo<TMessage>> ConnectedClients => m_ConnectedClients;
-        public readonly ConcurrentDictionary<long, ClientInfo<TMessage>> m_ConnectedClients = new ConcurrentDictionary<long, ClientInfo<TMessage>>();
+        public ConcurrentDictionary<long, ClientInfo> ConnectedClients => m_ConnectedClients;
+        public readonly ConcurrentDictionary<long, ClientInfo> m_ConnectedClients = new ConcurrentDictionary<long, ClientInfo>();
 
         private long m_IdCount = 1;
 
@@ -51,11 +51,11 @@ namespace Messaging.PersistentTcp
                     try
                     {
                         var tcp = await m_TcpListener.AcceptTcpClientAsync();
-                        var tcpClient = new PersistentTcpClient<TMessage>(tcp);
+                        var tcpClient = new PersistentTcpClient(tcp);
                         var ip = tcpClient.Client.Client.RemoteEndPoint.ToString();
                         var id = m_IdCount;
 
-                        var client = new ClientInfo<TMessage>()
+                        var client = new ClientInfo()
                         {
                             id = id,
                             client = tcpClient,
@@ -103,7 +103,7 @@ namespace Messaging.PersistentTcp
             // Do nothing if it's already closed.
         }
 
-        public async Task Send(long clientID, TMessage message)
+        public async Task Send(long clientID, Message message)
         {
             if (!IsConnected(clientID))
                 throw new InvalidOperationException($"Client not connected: {clientID}");

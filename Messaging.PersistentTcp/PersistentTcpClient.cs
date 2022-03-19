@@ -1,4 +1,5 @@
 ﻿using Messaging.PersistentTcp.Serializers;
+using Messaging.PersistentTcp.Utilities;
 using System;
 using System.Collections.Concurrent;
 using System.IO;
@@ -8,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Messaging.PersistentTcp
 {
-    public class PersistentTcpClient<TMessage> : IDisposable where TMessage : Message
+    public class PersistentTcpClient : IDisposable
     {
         public event Action Connected;
         public event Action Connecting;
@@ -16,7 +17,7 @@ namespace Messaging.PersistentTcp
         public event Action Disconnected;
 
         public event Action<string> InvalidMessageReceived;
-        public event Action<TMessage> MessageReceived;
+        public event Action<Message> MessageReceived;
 
         public bool AutoReconnect { get; set; }
         public bool IsDisposed { get; private set; }
@@ -36,14 +37,14 @@ namespace Messaging.PersistentTcp
         private string m_Host;
         private int m_Port;
 
-        private readonly ConcurrentDictionary<Guid, TaskCompletionSource<TMessage>> m_Responses = new ConcurrentDictionary<Guid, TaskCompletionSource<TMessage>>();
+        private readonly ConcurrentDictionary<Guid, TaskCompletionSource<Message>> m_Responses = new ConcurrentDictionary<Guid, TaskCompletionSource<Message>>();
 
-        private readonly ISerializer<TMessage> m_Serializer;
+        private readonly ISerializer<Message> m_Serializer;
 
         public PersistentTcpClient()
         {
             Client = new TcpClient();
-            m_Serializer = new JsonSerializer<TMessage>();
+            m_Serializer = new JsonSerializer<Message>();
         }
 
         public PersistentTcpClient(TcpClient tcpClient)
@@ -51,7 +52,7 @@ namespace Messaging.PersistentTcp
             Client = tcpClient;
             Stream = tcpClient.GetStream();
             ListenForMessages();
-            m_Serializer = new JsonSerializer<TMessage>();
+            m_Serializer = new JsonSerializer<Message>();
         }
 
         public async Task AutoConnectAsync(string hostname, int port)
@@ -135,7 +136,7 @@ namespace Messaging.PersistentTcp
             m_Thread.Start();
         }
 
-        private async Task<TMessage> ReadNextMessage()
+        private async Task<Message> ReadNextMessage()
         {
             int msgLength = GetMessageLength();
 
@@ -155,7 +156,7 @@ namespace Messaging.PersistentTcp
             return m_Serializer.Deserialize(array);
         }
 
-        public async Task Send(TMessage message)
+        public async Task Send(Message message)
         {
             var bytes = m_Serializer.Serialize(message);
             var msgLength = bytes.Length;
@@ -170,16 +171,16 @@ namespace Messaging.PersistentTcp
             await Stream.WriteAsync(bytes.AsMemory());
         }
 
-        public async Task<TMessage> SendAndWaitForResponse(TMessage message, int timeout = 10000, CancellationToken cancellationToken = default)
+        public async Task<Message> SendAndWaitForResponse(Message message, int timeout = 10000, CancellationToken cancellationToken = default)
         {
-            var tcs = new TaskCompletionSource<TMessage>();
+            var tcs = new TaskCompletionSource<Message>();
 
             m_Responses[message.Guid] = tcs;
 
             var timeoutTask = Task.Run(async () =>
             {
                 await Task.Delay(timeout);
-                return (TMessage) new Message("Timeout".ToBytesUTF8());
+                return (Message) new Message("Timeout".ToBytesUTF8());
             }, cancellationToken);
 
             await Send(message);
@@ -188,7 +189,7 @@ namespace Messaging.PersistentTcp
             return await finishedTask;
         }
 
-        private void CheckMessageIsResponse(TMessage msg)
+        private void CheckMessageIsResponse(Message msg)
         {
             // Removes message guid from response collection
             // Sets task result for anyone waiting for it

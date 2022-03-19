@@ -15,11 +15,11 @@ namespace Messaging.Server
         private readonly int m_Port;
         private readonly IPAddress m_LocalAddr = IPAddress.Parse("127.0.0.1");
 
-        private readonly PersistentTcpListener<MessageCommand> m_PersistentTcpListener;
+        private readonly PersistentTcpListener m_PersistentTcpListener;
 
         public MessagingServer(int port = DefaultPort)
         {
-            m_PersistentTcpListener = new PersistentTcpListener<MessageCommand>();
+            m_PersistentTcpListener = new PersistentTcpListener();
 
             m_PersistentTcpListener.MessageReceived += OnMessageReceived;
             m_PersistentTcpListener.InvalidMessageReceived += OnInvalidMessageReceived;
@@ -35,7 +35,7 @@ namespace Messaging.Server
             Logger.LogServer("Cannnot establish connection: {0}", e);
         }
 
-        private void OnDisconnected(ClientInfo<MessageCommand> clientInfo)
+        private void OnDisconnected(ClientInfo clientInfo)
         {
             Logger.LogClient(clientInfo, "Client disconnected.");
         }
@@ -52,7 +52,7 @@ namespace Messaging.Server
             Logger.LogClient(client, msg);
         }
 
-        private void OnMessageReceived(long id, MessageCommand msg)
+        private void OnMessageReceived(long id, Message msg)
         {
             var client = m_PersistentTcpListener.ConnectedClients[id];
             Logger.LogClient(client, msg.ToString());

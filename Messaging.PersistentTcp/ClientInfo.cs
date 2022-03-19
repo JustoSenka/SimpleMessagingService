@@ -1,9 +1,9 @@
 ﻿namespace Messaging.PersistentTcp
 {
-    public struct ClientInfo<TMessage> where TMessage : Message
+    public struct ClientInfo
     {
         public long id;
         public string endpoint;
-        public PersistentTcpClient<TMessage> client;
+        public PersistentTcpClient client;
     }
 }

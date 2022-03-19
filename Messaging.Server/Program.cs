@@ -1,6 +1,7 @@
 ﻿using Messaging.Common;
 using Messaging.Common.Utilities;
 using Messaging.PersistentTcp;
+using Messaging.PersistentTcp.Utilities;
 using Messaging.Server;
 using System;
 using System.Threading.Tasks;

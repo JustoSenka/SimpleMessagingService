@@ -10,7 +10,7 @@ namespace Messaging.Server.Utilities
         {
             Console.WriteLine($" -- {msg}", args);
         }
-        public static void LogClient(ClientInfo<MessageCommand> client, string msg, params object[] args)
+        public static void LogClient(ClientInfo client, string msg, params object[] args)
         {
             Console.WriteLine($"[{client.endpoint}]:[{client.id}]: {msg}", args);
         }

@@ -1,4 +1,5 @@
 ﻿using Messaging.PersistentTcp;
+using Messaging.PersistentTcp.Utilities;
 using System;
 
 namespace Messaging.Common

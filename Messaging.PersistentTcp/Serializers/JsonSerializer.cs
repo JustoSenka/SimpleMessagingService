@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿using Messaging.PersistentTcp.Utilities;
+using Newtonsoft.Json;
 
 namespace Messaging.PersistentTcp.Serializers
 {

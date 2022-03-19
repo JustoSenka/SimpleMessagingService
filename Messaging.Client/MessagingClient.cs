@@ -17,13 +17,13 @@ namespace Messaging.Client
 
         public bool AutoReconnect { get => m_Client.AutoReconnect; set => m_Client.AutoReconnect = value; }
 
-        private readonly PersistentTcpClient<MessageCommand> m_Client;
+        private readonly PersistentTcpClient m_Client;
 
         public MessagingClient(string address = DefaultAddress, int port = DefaultPort)
         {
             m_Host = address;
             m_Port = port;
-            m_Client = new PersistentTcpClient<MessageCommand>();
+            m_Client = new PersistentTcpClient();
             m_Client.AutoReconnect = true;
 
             m_Client.CannotConnect += OnCannotConnect;
@@ -54,7 +54,7 @@ namespace Messaging.Client
             Logger.LogClient(str);
         }
 
-        private void OnMessageReceived(MessageCommand msg)
+        private void OnMessageReceived(Message msg)
         {
             Logger.LogServer(msg.ToString());
         }

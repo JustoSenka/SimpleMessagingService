@@ -1,9 +1,8 @@
-﻿using System;
-using System.Threading.Tasks;
-using Messaging.Client;
+﻿using Messaging.Client;
 using Messaging.Common;
-using Messaging.Common.Utilities;
-using Messaging.PersistentTcp;
+using Messaging.PersistentTcp.Utilities;
+using System;
+using System.Threading.Tasks;
 
 namespace Messaging.ClientCLI
 {

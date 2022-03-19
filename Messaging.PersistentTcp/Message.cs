@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Messaging.PersistentTcp.Utilities;
+using System;
 
 namespace Messaging.PersistentTcp
 {
@@ -24,5 +25,7 @@ namespace Messaging.PersistentTcp
                 Guid = this.Guid
             };
         }
+
+        public override string ToString() => bytes.ToStringUTF8();
     }
 }
