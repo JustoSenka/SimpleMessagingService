@@ -19,32 +19,36 @@ namespace Messaging.PersistentTcp
         public event Action<string> InvalidMessageReceived;
         public event Action<Message> MessageReceived;
 
-        public bool AutoReconnect { get; set; }
+        public bool AutoReconnect { get; private set; }
         public bool IsDisposed { get; private set; }
-        public bool IsDisconnecting { get; private set; }
         public bool IsConnecting { get; private set; }
         public TcpClient Client { get; private set; }
         public NetworkStream Stream { get; private set; }
 
         private Thread m_Thread;
-        private readonly object DisconnectingLock = new object();
         private readonly object ConnectingLock = new object();
 
         private const int m_DefaultReconnectDelay = 500;
         private const int m_MaxReconnectDelay = 300000; // 5 minutes
         private int m_ReconnectDelay = m_DefaultReconnectDelay;
 
-        private string m_Host;
-        private int m_Port;
+        private bool m_IsConnected;
+
+        private readonly string m_Host;
+        private readonly int m_Port;
 
         private readonly ConcurrentDictionary<Guid, TaskCompletionSource<Message>> m_Responses = new ConcurrentDictionary<Guid, TaskCompletionSource<Message>>();
 
         private readonly ISerializer<Message> m_Serializer;
 
-        public PersistentTcpClient()
+        public PersistentTcpClient(string hostname, int port, bool autoConnect = false)
         {
             Client = new TcpClient();
             m_Serializer = new JsonSerializer<Message>();
+
+            m_Host = hostname;
+            m_Port = port;
+            AutoReconnect = autoConnect;
         }
 
         public PersistentTcpClient(TcpClient tcpClient)
@@ -52,11 +56,16 @@ namespace Messaging.PersistentTcp
             Client = tcpClient;
             Stream = tcpClient.GetStream();
             ListenForMessages();
+
+            m_IsConnected = true;
             m_Serializer = new JsonSerializer<Message>();
         }
 
-        public async Task AutoConnectAsync(string hostname, int port)
+        public async Task AutoConnectAsync()
         {
+            if (IsDisposed)
+                throw new ObjectDisposedException(nameof(PersistentTcpClient));
+
             lock (ConnectingLock)
             {
                 if (IsConnecting)
@@ -65,8 +74,6 @@ namespace Messaging.PersistentTcp
                 IsConnecting = true;
             }
 
-            m_Host = hostname;
-            m_Port = port;
 
             while (!IsDisposed && !Client.Connected)
             {
@@ -89,16 +96,18 @@ namespace Messaging.PersistentTcp
             }
 
             IsConnecting = false;
+            m_IsConnected = true;
+
             m_ReconnectDelay = m_DefaultReconnectDelay;
             Connected?.Invoke();
             ListenForMessages();
         }
 
-        public void ListenForMessages()
+        private void ListenForMessages()
         {
             m_Thread = new Thread(async () =>
             {
-                while (!IsDisposed)
+                while (true)
                 {
                     try
                     {
@@ -108,18 +117,15 @@ namespace Messaging.PersistentTcp
                     }
                     catch (SocketException)
                     {
-                        await OnDisconnected();
-                        return;
+                        break;
                     }
                     catch (InvalidOperationException)
                     {
-                        await OnDisconnected();
-                        return;
+                        break;
                     }
                     catch (IOException)
                     {
-                        await OnDisconnected();
-                        return;
+                        break;
                     }
                     catch (InvalidMessageException e)
                     {
@@ -127,10 +133,11 @@ namespace Messaging.PersistentTcp
                         InvalidMessageReceived?.Invoke(e.Message);
 
                         // As i'm not fixing the stream with possibly leftover data, just disconnect and reconnect
-                        await OnDisconnected();
-                        return;
+                        break;
                     }
                 }
+
+                Disconnect();
             });
 
             m_Thread.Start();
@@ -139,6 +146,8 @@ namespace Messaging.PersistentTcp
         private async Task<Message> ReadNextMessage()
         {
             int msgLength = GetMessageLength();
+            if (msgLength == -257)
+                throw new SocketException(); // Connection closed from other side
 
             var array = new byte[msgLength];
             var bytesRead = await Stream.ReadAsync(array.AsMemory());
@@ -158,6 +167,9 @@ namespace Messaging.PersistentTcp
 
         public async Task Send(Message message)
         {
+            if (IsDisposed)
+                throw new ObjectDisposedException(nameof(PersistentTcpClient));
+
             var bytes = m_Serializer.Serialize(message);
             var msgLength = bytes.Length;
 
@@ -173,6 +185,9 @@ namespace Messaging.PersistentTcp
 
         public async Task<Message> SendAndWaitForResponse(Message message, int timeout = 10000, CancellationToken cancellationToken = default)
         {
+            if (IsDisposed)
+                throw new ObjectDisposedException(nameof(PersistentTcpClient));
+
             var tcs = new TaskCompletionSource<Message>();
 
             m_Responses[message.Guid] = tcs;
@@ -208,55 +223,42 @@ namespace Messaging.PersistentTcp
             return byte1 * 256 + byte2;
         }
 
-        private async Task OnDisconnected()
-        {
-            // Try diconnect, make sure to do it only once
-            lock (DisconnectingLock)
-            {
-                if (IsDisconnecting)
-                    return;
-
-                IsDisconnecting = true;
-            }
-
-            Disconnected?.Invoke();
-            Dispose();
-            // m_Thread.Join();
-
-            IsDisconnecting = false;
-
-            // continue to reconnect
-            if (AutoReconnect)
-            {
-                Client = new TcpClient();
-                IsDisposed = false;
-                await AutoConnectAsync(m_Host, m_Port);
-            }
-        }
-
         private async Task DelayUntilNextConnectionAttempt()
         {
             await Task.Delay(m_ReconnectDelay);
             m_ReconnectDelay = Math.Min(m_ReconnectDelay * 2, m_MaxReconnectDelay);
         }
 
-        public void Dispose()
+        public void Disconnect()
         {
-            IsDisposed = true;
+            if (!m_IsConnected)
+                return;
 
-            try
-            {
-                Stream.Dispose();
-            }
-            catch (Exception) { }
+            m_IsConnected = false;
 
             try
             {
                 Client.Dispose();
+                Stream.Dispose();
             }
             catch (Exception) { }
+
+            Disconnected?.Invoke();
+
+            // continue to reconnect
+            if (AutoReconnect && !IsDisposed)
+            {
+                Client = new TcpClient();
+                Task.Run(AutoConnectAsync);
+            }
         }
 
-        public bool IsConnected() => Client.Connected;
+        public void Dispose()
+        {
+            IsDisposed = true;
+            Disconnect();
+        }
+
+        public bool IsConnected() => m_IsConnected && Client.Connected;
     }
 }

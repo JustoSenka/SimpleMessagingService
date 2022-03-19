@@ -11,15 +11,13 @@ namespace Messaging.Server
     public class MessagingServer : IDisposable
     {
         public const int DefaultPort = 13000;
-
         private readonly int m_Port;
-        private readonly IPAddress m_LocalAddr = IPAddress.Parse("127.0.0.1");
 
         private readonly PersistentTcpListener m_PersistentTcpListener;
 
         public MessagingServer(int port = DefaultPort)
         {
-            m_PersistentTcpListener = new PersistentTcpListener();
+            m_PersistentTcpListener = new PersistentTcpListener(port);
 
             m_PersistentTcpListener.MessageReceived += OnMessageReceived;
             m_PersistentTcpListener.InvalidMessageReceived += OnInvalidMessageReceived;
@@ -60,7 +58,7 @@ namespace Messaging.Server
 
         public void Start()
         {
-            Logger.LogServer("Starting TCP Server: {0}:{1}", m_LocalAddr, m_Port);
+            Logger.LogServer("Starting TCP Server: {0}:{1}", IPAddress.Loopback, m_Port);
             m_PersistentTcpListener.Start();
         }
 

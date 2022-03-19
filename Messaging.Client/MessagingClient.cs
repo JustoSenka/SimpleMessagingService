@@ -15,16 +15,13 @@ namespace Messaging.Client
         private readonly string m_Host;
         private readonly int m_Port;
 
-        public bool AutoReconnect { get => m_Client.AutoReconnect; set => m_Client.AutoReconnect = value; }
-
         private readonly PersistentTcpClient m_Client;
 
-        public MessagingClient(string address = DefaultAddress, int port = DefaultPort)
+        public MessagingClient(string address = DefaultAddress, int port = DefaultPort, bool autoConnect = false)
         {
             m_Host = address;
             m_Port = port;
-            m_Client = new PersistentTcpClient();
-            m_Client.AutoReconnect = true;
+            m_Client = new PersistentTcpClient(m_Host, m_Port, autoConnect: autoConnect);
 
             m_Client.CannotConnect += OnCannotConnect;
             m_Client.MessageReceived += OnMessageReceived;
@@ -66,7 +63,7 @@ namespace Messaging.Client
 
         public async Task Connect()
         {
-            await m_Client.AutoConnectAsync(m_Host, m_Port);
+            await m_Client.AutoConnectAsync();
         }
 
         public async Task Send(MessageCommand message)

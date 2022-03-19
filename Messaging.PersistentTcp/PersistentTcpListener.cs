@@ -18,30 +18,27 @@ namespace Messaging.PersistentTcp
         
         public event Action<Exception> ErrorWhileConnecting;
 
-        public const int DefaultPort = 13000;
-
         public bool IsDisposing { get; private set; }
 
         private TcpListener m_TcpListener;
 
         private readonly int m_Port;
-        private readonly IPAddress m_LocalAddr = IPAddress.Parse("127.0.0.1");
 
         private Thread m_ListeningThread;
 
         public ConcurrentDictionary<long, ClientInfo> ConnectedClients => m_ConnectedClients;
-        public readonly ConcurrentDictionary<long, ClientInfo> m_ConnectedClients = new ConcurrentDictionary<long, ClientInfo>();
+        private readonly ConcurrentDictionary<long, ClientInfo> m_ConnectedClients = new ConcurrentDictionary<long, ClientInfo>();
 
         private long m_IdCount = 1;
 
-        public PersistentTcpListener(int port = DefaultPort)
+        public PersistentTcpListener(int port)
         {
             m_Port = port;
         }
 
         public void Start()
         {
-            m_TcpListener = new TcpListener(m_LocalAddr, m_Port);
+            m_TcpListener = new TcpListener(IPAddress.Loopback, m_Port);
             m_TcpListener.Start();
 
             m_ListeningThread = new Thread(async () =>
@@ -92,8 +89,8 @@ namespace Messaging.PersistentTcp
             {
                 try
                 {
-                    client.client.Dispose();
                     client.client.Stream.Dispose();
+                    client.client.Dispose();
                 }
                 catch (Exception) { }
 
