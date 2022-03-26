@@ -61,7 +61,7 @@ namespace Messaging.Client
             Logger.LogClient("Unable to connect to host {0}:{1}.", m_Host, m_Port);
         }
 
-        public async Task Connect()
+        public async Task AutoConnectAsync()
         {
             await m_Client.AutoConnectAsync();
         }

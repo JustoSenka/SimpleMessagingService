@@ -9,6 +9,8 @@ namespace Messaging.Common
     {
         public MessageType messageType;
 
+        public MessageCommand(byte[] bytes, bool requestResponse = false) : base(bytes, requestResponse) { }
+
         public MessageCommand(MessageType messageType, byte[] bytes, bool requestResponse = false) : base(bytes, requestResponse)
         {
             this.messageType = messageType;

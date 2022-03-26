@@ -11,7 +11,7 @@ namespace Messaging.ClientCLI
         static async Task Main(string[] args)
         {
             var s = new MessagingClient();
-            await s.Connect();
+            await s.AutoConnectAsync();
 
             while (true)
             {

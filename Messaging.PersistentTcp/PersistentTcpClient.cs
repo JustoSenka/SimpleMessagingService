@@ -2,6 +2,7 @@
 using Messaging.PersistentTcp.Utilities;
 using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading;
@@ -31,6 +32,8 @@ namespace Messaging.PersistentTcp
         private const int m_DefaultReconnectDelay = 500;
         private const int m_MaxReconnectDelay = 300000; // 5 minutes
         private int m_ReconnectDelay = m_DefaultReconnectDelay;
+
+        private const int m_Timeout = 2000;
 
         private bool m_IsConnected;
 
@@ -112,8 +115,11 @@ namespace Messaging.PersistentTcp
                     try
                     {
                         var msg = await ReadNextMessage();
+                        Console.WriteLine("got msg: " + msg.bytes.ToStringUTF8() + " " + msg.Guid.ToString());
+
                         MessageReceived?.Invoke(msg);
                         CheckMessageIsResponse(msg);
+                        await SendResponseIfRequires(msg); // Should I wait for it? 
                     }
                     catch (SocketException)
                     {
@@ -170,23 +176,33 @@ namespace Messaging.PersistentTcp
             if (IsDisposed)
                 throw new ObjectDisposedException(nameof(PersistentTcpClient));
 
-            var bytes = m_Serializer.Serialize(message);
-            var msgLength = bytes.Length;
+            await Task.Run(() =>
+            {
+                Console.WriteLine("sent msg: " + message.bytes.ToStringUTF8() + " " + message.Guid.ToString());
 
-            var byte1 = (byte)(msgLength >> 8);
-            var byte2 = (byte)(msgLength % 0xff);
+                var bytes = m_Serializer.Serialize(message);
+                var msgLength = bytes.Length;
 
-            // Writing bytes in big-endien, bigger byte first
-            Stream.WriteByte(byte1);
-            Stream.WriteByte(byte2);
+                var byte1 = (byte)(msgLength >> 8);
+                var byte2 = (byte)(msgLength % 0xff);
 
-            await Stream.WriteAsync(bytes.AsMemory());
+                lock (Stream)
+                {
+                    // Writing bytes in big-endien, bigger byte first
+                    Stream.WriteByte(byte1);
+                    Stream.WriteByte(byte2);
+                    Stream.Write(bytes.AsSpan());
+                    // await Stream.WriteAsync(bytes.AsMemory());
+                }
+            });
         }
 
-        public async Task<Message> SendAndWaitForResponse(Message message, int timeout = 10000, CancellationToken cancellationToken = default)
+        public async Task<Message> SendAndWaitForResponse(Message message, int timeout = m_Timeout, CancellationToken cancellationToken = default)
         {
             if (IsDisposed)
                 throw new ObjectDisposedException(nameof(PersistentTcpClient));
+
+            message.requestResponse = true;
 
             var tcs = new TaskCompletionSource<Message>();
 
@@ -195,7 +211,7 @@ namespace Messaging.PersistentTcp
             var timeoutTask = Task.Run(async () =>
             {
                 await Task.Delay(timeout);
-                return (Message) new Message("Timeout".ToBytesUTF8());
+                return (Message)new Message("Timeout".ToBytesUTF8());
             }, cancellationToken);
 
             await Send(message);
@@ -210,9 +226,21 @@ namespace Messaging.PersistentTcp
             // Sets task result for anyone waiting for it
             if (m_Responses.TryRemove(msg.Guid, out var taskSource))
             {
+                Console.WriteLine("Setting Response");
                 taskSource.SetResult(msg);
             }
         }
+
+        private async Task SendResponseIfRequires(Message msg)
+        {
+            if (msg.requestResponse)
+            {
+                var newMessage = msg.ConstructResponse();
+                await Send(newMessage);
+                //Task.Run(() => Send(newMessage));
+            }
+        }
+
 
         private int GetMessageLength()
         {

@@ -18,6 +18,8 @@ namespace Messaging.PersistentTcp
         
         public event Action<Exception> ErrorWhileConnecting;
 
+        private const int m_Timeout = 2000;
+
         public bool IsDisposing { get; private set; }
 
         private TcpListener m_TcpListener;
@@ -107,6 +109,15 @@ namespace Messaging.PersistentTcp
 
             var client = ConnectedClients[clientID];
             await client.client.Send(message);
+        }
+
+        public async Task<Message> SendAndWaitForResponse(long clientID, Message message, int timeout = m_Timeout, CancellationToken cancellationToken = default)
+        {
+            if (!IsConnected(clientID))
+                throw new InvalidOperationException($"Client not connected: {clientID}");
+
+            var client = ConnectedClients[clientID];
+            return await client.client.SendAndWaitForResponse(message, timeout, cancellationToken);
         }
 
         public void CloseAllClientConnetcions()
